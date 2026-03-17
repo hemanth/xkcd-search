@@ -1,10 +1,12 @@
-# XKCD Reverse Lookup 🔍
-
-Upload an XKCD comic image or describe it in text — instantly find which comic it is.
+# XKCD Reverse Lookup 
+> Upload an XKCD comic image or describe it in text — instantly find which comic it is.
 
 Powered by **gemini-embedding-2-preview** multimodal embeddings and the [olivierdehaene/xkcd](https://huggingface.co/datasets/olivierdehaene/xkcd) dataset.
 
 ![Architecture](arch.png)
+
+
+https://github.com/user-attachments/assets/9ed0f3d9-eecd-4257-88be-3e3e3f0359be
 
 ## Setup
 
