@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XKCD Reverse Lookup</title>
+    <meta name="description" content="Upload an XKCD comic or describe it to find which comic it is, powered by Gemini multimodal embeddings.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #000000;
+            --surface: #111111;
+            --surface-hover: #1a1a1a;
+            --border: rgba(255, 255, 255, 0.15);
+            --border-active: rgba(255, 255, 255, 0.5);
+            --text: #ffffff;
+            --text-dim: #888888;
+            --accent: #ffffff;
+            --accent-glow: rgba(255, 255, 255, 0.08);
+            --success: #cccccc;
+            --radius: 12px;
+            --glass: rgba(17, 17, 17, 0.7);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            padding: 3rem 1rem 1.5rem;
+            max-width: 600px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        header p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        main {
+            width: 100%;
+            max-width: 720px;
+            padding: 0 1rem 3rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.25rem;
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 4px;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.65rem;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: all 0.2s ease;
+            border: none;
+            background: none;
+        }
+
+        .tab.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+            border: 1px solid var(--border-active);
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: var(--radius);
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: var(--surface);
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: rgba(255, 255, 255, 0.5);
+            background: var(--accent-glow);
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .drop-zone .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+            opacity: 0.6;
+        }
+
+        .drop-zone .label {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        .drop-zone .label strong {
+            color: var(--text);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .preview-img {
+            max-width: 100%;
+            max-height: 320px;
+            border-radius: 8px;
+            display: none;
+            object-fit: contain;
+        }
+
+        .drop-zone.has-preview {
+            padding: 1rem;
+            border-style: solid;
+            border-color: rgba(255, 255, 255, 0.12);
+            cursor: default;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .drop-zone.has-preview:hover {
+            background: var(--surface);
+        }
+
+        .drop-zone.has-preview .icon,
+        .drop-zone.has-preview .label,
+        .drop-zone.has-preview input[type="file"] {
+            display: none;
+        }
+
+        .clear-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: none;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            font-size: 0.85rem;
+            line-height: 28px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ccc;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .clear-btn:hover { color: #fff; background: rgba(0, 0, 0, 0.9); }
+        .drop-zone.has-preview .clear-btn { display: block; }
+
+        /* Text search */
+        .text-search {
+            display: none;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.2s;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .text-input::placeholder { color: var(--text-dim); }
+
+        /* Button */
+        .search-btn {
+            width: 100%;
+            padding: 0.8rem;
+            margin-top: 1rem;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            border-radius: var(--radius);
+            background: #ffffff;
+            color: #000000;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .search-btn:hover { opacity: 0.9; }
+        .search-btn:active { transform: scale(0.98); }
+        .search-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Status */
+        .status {
+            text-align: center;
+            padding: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            display: none;
+        }
+
+        .status.loading::after {
+            content: '';
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Results */
+        .results {
+            margin-top: 1.5rem;
+        }
+
+        .results h2 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+        }
+
+        .card {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 0.75rem;
+            transition: border-color 0.2s, background 0.2s;
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+            flex-wrap: wrap;
+        }
+
+        .card:hover {
+            border-color: var(--border-active);
+            background: var(--surface-hover);
+        }
+
+        .card-thumb {
+            width: 120px;
+            height: 90px;
+            object-fit: contain;
+            border-radius: 6px;
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        .card-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-num {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            background: var(--accent-glow);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .card-score {
+            font-size: 0.75rem;
+            color: var(--success);
+            margin-left: auto;
+        }
+
+        .card-desc {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            line-height: 1.4;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .card-expanded-content {
+            width: 100%;
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .card.expanded .card-expanded-content {
+            display: block;
+        }
+
+        .card.expanded .card-desc {
+            display: none;
+        }
+
+        .card-expanded-img {
+            width: 100%;
+            max-height: 500px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #fff;
+            margin-bottom: 1rem;
+        }
+
+        .card-section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            margin-bottom: 0.35rem;
+            margin-top: 0.75rem;
+        }
+
+        .card-section-label:first-child {
+            margin-top: 0;
+        }
+
+        .card-section-text {
+            font-size: 0.82rem;
+            color: #cccccc;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .card-link {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.75rem;
+        }
+
+        .card-link a {
+            color: var(--text);
+            text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+            .card { flex-direction: column; }
+            .card img { width: 100%; height: auto; max-height: 160px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>XKCD Reverse Lookup</h1>
+        <p>Upload a comic image or describe it — find which XKCD it is, powered by Gemini multimodal embeddings.</p>
+    </header>
+
+    <main>
+        <div class="tabs" role="tablist">
+            <button class="tab active" data-mode="image" role="tab" id="tab-image">📷 Image Upload</button>
+            <button class="tab" data-mode="text" role="tab" id="tab-text">✏️ Text Search</button>
+        </div>
+
+        <div class="image-search" id="image-panel">
+            <div class="drop-zone" id="drop-zone">
+                <input type="file" accept="image/*" id="file-input">
+                <span class="icon">🖼️</span>
+                <div class="label">Drop, paste, or <strong>click to browse</strong> an XKCD comic</div>
+                <img class="preview-img" id="preview-img" alt="Preview">
+                <button class="clear-btn" id="clear-btn">✕</button>
+            </div>
+        </div>
+
+        <div class="text-search" id="text-panel">
+            <textarea class="text-input" id="text-input" placeholder="Describe the XKCD comic… e.g. 'someone is coding at a desk while their friend tries to talk to them about going outside'" rows="4"></textarea>
+        </div>
+
+        <button class="search-btn" id="search-btn" disabled>Search</button>
+        <div class="status" id="status"></div>
+        <div class="results" id="results"></div>
+    </main>
+
+    <script>
+        const tabs = document.querySelectorAll('.tab');
+        const imagePanel = document.getElementById('image-panel');
+        const textPanel = document.getElementById('text-panel');
+        const fileInput = document.getElementById('file-input');
+        const previewImg = document.getElementById('preview-img');
+        const textInput = document.getElementById('text-input');
+        const searchBtn = document.getElementById('search-btn');
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+        const dropZone = document.getElementById('drop-zone');
+
+        let mode = 'image';
+        let selectedFile = null;
+
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                mode = tab.dataset.mode;
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                imagePanel.style.display = mode === 'image' ? 'block' : 'none';
+                textPanel.style.display = mode === 'text' ? 'block' : 'none';
+                updateSearchBtn();
+            });
+        });
+
+        function showPreview(file) {
+            selectedFile = file;
+            previewImg.src = URL.createObjectURL(file);
+            previewImg.style.display = 'block';
+            dropZone.classList.add('has-preview');
+            updateSearchBtn();
+        }
+
+        function clearPreview() {
+            selectedFile = null;
+            previewImg.src = '';
+            previewImg.style.display = 'none';
+            dropZone.classList.remove('has-preview');
+            fileInput.value = '';
+            updateSearchBtn();
+        }
+
+        document.getElementById('clear-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            clearPreview();
+        });
+
+        // File input
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) showPreview(e.target.files[0]);
+        });
+
+        // Drag & drop
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) showPreview(e.dataTransfer.files[0]);
+        });
+
+        // Clipboard paste
+        document.addEventListener('paste', (e) => {
+            if (mode !== 'image') return;
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    showPreview(item.getAsFile());
+                    break;
+                }
+            }
+        });
+
+        // Text input
+        textInput.addEventListener('input', updateSearchBtn);
+
+        function updateSearchBtn() {
+            if (mode === 'image') {
+                searchBtn.disabled = !selectedFile;
+            } else {
+                searchBtn.disabled = !textInput.value.trim();
+            }
+        }
+
+        // Search
+        searchBtn.addEventListener('click', async () => {
+            searchBtn.disabled = true;
+            statusEl.textContent = 'Searching…';
+            statusEl.className = 'status loading';
+            statusEl.style.display = 'block';
+            resultsEl.innerHTML = '';
+
+            const formData = new FormData();
+            if (mode === 'image' && selectedFile) {
+                formData.append('file', selectedFile);
+            } else if (mode === 'text') {
+                formData.append('query', textInput.value.trim());
+            }
+
+            try {
+                const resp = await fetch('/api/search', { method: 'POST', body: formData });
+                if (!resp.ok) {
+                    const text = await resp.text();
+                    try { const j = JSON.parse(text); statusEl.textContent = `Error: ${j.error || j.detail || 'Server error'}`; }
+                    catch { statusEl.textContent = `Error: ${resp.status} — ${text.slice(0, 100)}`; }
+                    statusEl.className = 'status';
+                    return;
+                }
+                const data = await resp.json();
+
+                if (data.error) {
+                    statusEl.textContent = `Error: ${data.error}`;
+                    statusEl.className = 'status';
+                    return;
+                }
+
+                statusEl.style.display = 'none';
+                renderResults(data.results);
+            } catch (err) {
+                statusEl.textContent = `Error: ${err.message}`;
+                statusEl.className = 'status';
+            } finally {
+                updateSearchBtn();
+            }
+        });
+
+        function escHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function renderResults(results) {
+            if (!results.length) {
+                resultsEl.innerHTML = '<p style="color:var(--text-dim);text-align:center;">No results found.</p>';
+                return;
+            }
+
+            let html = '<h2>Top Matches</h2>';
+            for (const r of results) {
+                const pctNum = (r.score * 100).toFixed(1);
+                const simNum = r.score.toFixed(2);
+                const preview = (r.transcript || r.explanation || '').slice(0, 120);
+                const transcript = r.transcript || '';
+                const explanation = r.explanation || '';
+                html += `
+                    <div class="card" onclick="this.classList.toggle('expanded')">
+                        <img class="card-thumb" src="/comics/images/${r.filename}" alt="${escHtml(r.title)}" loading="lazy">
+                        <div class="card-body">
+                            <div class="card-title">
+                                ${escHtml(r.title)}
+                                <span class="card-num">#${r.comic_id}</span>
+                                <span class="card-score">${pctNum}% · sim ${simNum}</span>
+                            </div>
+                            <div class="card-desc">${escHtml(preview)}</div>
+                            <div class="card-expanded-content">
+                                <img class="card-expanded-img" src="/comics/images/${r.filename}" alt="${escHtml(r.title)}">
+                                ${transcript ? `<div class="card-section-label">Transcript</div><div class="card-section-text">${escHtml(transcript)}</div>` : ''}
+                                ${explanation ? `<div class="card-section-label">Explanation</div><div class="card-section-text">${escHtml(explanation)}</div>` : ''}
+                                <div class="card-link"><a href="${r.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">xkcd.com/${r.comic_id} ↗</a></div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            resultsEl.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
