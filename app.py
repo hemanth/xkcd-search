@@ -1,45 +1,28 @@
 """FastAPI server for XKCD reverse image lookup."""
 
-import json
 import os
 from contextlib import asynccontextmanager
 
-import numpy as np
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from engine import embed_image, embed_text, load_index, search
+from engine import embed_image, embed_text, get_chroma, search, IMAGE_COLLECTION
 
-COMICS_DIR = "comics"
-METADATA_FILE = os.path.join(COMICS_DIR, "metadata.json")
-IMAGES_DIR = os.path.join(COMICS_DIR, "images")
-
-# Loaded at startup
-comic_index: dict | None = None
-comics_meta: dict[int, dict] = {}
+IMAGES_DIR = os.path.join("comics", "images")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global comic_index, comics_meta
     print("🔍 Loading XKCD index…")
     try:
-        index = load_index()
-        if len(index["ids"]) > 0:
-            comic_index = index
-            has_text = index.get("text_embeddings") is not None
-            print(f"✅ Loaded {len(index['ids'])} embeddings (hybrid={'yes' if has_text else 'no'})")
-        else:
-            print("⚠️  Index is empty — run index_comics.py with a valid API key")
+        chroma = get_chroma()
+        img_col = chroma.get_collection(IMAGE_COLLECTION)
+        count = img_col.count()
+        print(f"✅ ChromaDB loaded — {count} comics indexed")
     except Exception as e:
         print(f"⚠️  Could not load index: {e}")
-
-    if os.path.exists(METADATA_FILE):
-        with open(METADATA_FILE) as f:
-            for c in json.load(f):
-                comics_meta[c["num"]] = c
-        print(f"📚 Loaded {len(comics_meta)} comics metadata")
+        print("   Run index_comics.py first.")
     yield
 
 
@@ -65,12 +48,6 @@ async def search_comics(
     file: UploadFile | None = File(None),
     query: str | None = Form(None),
 ):
-    if comic_index is None:
-        return JSONResponse(
-            {"error": "Index not loaded — run index_comics.py with a valid API key"},
-            status_code=503,
-        )
-
     try:
         if file and file.filename:
             image_bytes = await file.read()
@@ -83,18 +60,9 @@ async def search_comics(
         else:
             return JSONResponse({"error": "Provide an image or text query"}, status_code=400)
 
-        results = search(embedding, comic_index, top_k=5, query_type=query_type)
+        results = search(embedding, query_type=query_type, top_k=5)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
-
-    # Enrich with metadata
-    for r in results:
-        meta = comics_meta.get(r["comic_id"], {})
-        r["title"] = meta.get("title", "")
-        r["transcript"] = meta.get("transcript", "")
-        r["explanation"] = meta.get("explanation", "")
-        r["filename"] = meta.get("filename", "")
-        r["url"] = f"https://xkcd.com/{r['comic_id']}/"
 
     return {"results": results}
 

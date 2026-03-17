@@ -1,32 +1,45 @@
-"""Pre-compute embeddings for all scraped XKCD comics (image + text)."""
+"""Pre-compute embeddings for all scraped XKCD comics and store in ChromaDB."""
 
 import json
 import os
 import sys
 import time
 
-import numpy as np
-
-from engine import embed_image, embed_text
+from engine import embed_image, embed_text, get_chroma, IMAGE_COLLECTION, TEXT_COLLECTION
 
 COMICS_DIR = "comics"
 IMAGES_DIR = os.path.join(COMICS_DIR, "images")
 METADATA_FILE = os.path.join(COMICS_DIR, "metadata.json")
-EMBEDDINGS_DIR = "embeddings"
-EMBEDDINGS_FILE = os.path.join(EMBEDDINGS_DIR, "comics.npz")
 
 
 def index_comics():
-    """Embed every comic image AND its text (title + transcript) and save to disk."""
+    """Embed every comic image AND its text, store in ChromaDB."""
     with open(METADATA_FILE) as f:
         comics = json.load(f)
 
-    os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
+    chroma = get_chroma()
 
-    ids = []
-    image_embeddings = []
-    text_embeddings = []
+    # Create or reset collections with cosine distance
+    try:
+        chroma.delete_collection(IMAGE_COLLECTION)
+    except Exception:
+        pass
+    try:
+        chroma.delete_collection(TEXT_COLLECTION)
+    except Exception:
+        pass
+
+    img_col = chroma.create_collection(
+        name=IMAGE_COLLECTION,
+        metadata={"hnsw:space": "cosine"},
+    )
+    txt_col = chroma.create_collection(
+        name=TEXT_COLLECTION,
+        metadata={"hnsw:space": "cosine"},
+    )
+
     total = len(comics)
+    indexed = 0
 
     for i, comic in enumerate(comics):
         num = comic["num"]
@@ -50,31 +63,34 @@ def index_comics():
         if not text_blob or text_blob == ".":
             text_blob = f"{title}. {explanation}".strip()
 
+        # Metadata to store alongside embeddings
+        meta = {
+            "title": title,
+            "transcript": transcript[:4000],       # ChromaDB metadata size limit
+            "explanation": explanation[:4000],
+            "filename": comic["filename"],
+        }
+
         try:
             print(f"  [{i + 1}/{total}] Embedding #{num}: {title}")
+            doc_id = str(num)
 
             # Image embedding
             img_vec = embed_image(image_bytes, mime_type)
+            img_col.add(ids=[doc_id], embeddings=[img_vec], metadatas=[meta])
             time.sleep(0.25)
 
             # Text embedding
-            txt_vec = embed_text(text_blob[:2000])  # keep within limits
+            txt_vec = embed_text(text_blob[:2000])
+            txt_col.add(ids=[doc_id], embeddings=[txt_vec], metadatas=[meta])
             time.sleep(0.25)
 
-            ids.append(num)
-            image_embeddings.append(img_vec)
-            text_embeddings.append(txt_vec)
+            indexed += 1
         except Exception as e:
             print(f"  ⚠ Failed #{num}: {e}")
             continue
 
-    np.savez(
-        EMBEDDINGS_FILE,
-        ids=np.array(ids, dtype=np.int32),
-        image_embeddings=np.array(image_embeddings, dtype=np.float32),
-        text_embeddings=np.array(text_embeddings, dtype=np.float32),
-    )
-    print(f"✅ Indexed {len(ids)} comics (image + text) → {EMBEDDINGS_FILE}")
+    print(f"✅ Indexed {indexed} comics in ChromaDB (image + text collections)")
 
 
 if __name__ == "__main__":

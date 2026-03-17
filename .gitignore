@@ -3,4 +3,5 @@
 __pycache__/
 comics/
 embeddings/
+chroma_db/
 *.pyc
