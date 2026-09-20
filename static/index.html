@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XKCD Reverse Lookup</title>
-    <meta name="description" content="Upload an XKCD comic or describe it to find which comic it is, powered by Gemini multimodal embeddings.">
+    <meta name="description" content="Upload an XKCD comic or describe it in text to find which comic it is.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -12,46 +12,103 @@
 
         :root {
             --bg: #000000;
-            --surface: #111111;
-            --surface-hover: #1a1a1a;
-            --border: rgba(255, 255, 255, 0.15);
-            --border-active: rgba(255, 255, 255, 0.5);
+            --surface: #0d0d0d;
+            --surface-hover: #161616;
+            --border: rgba(255, 255, 255, 0.12);
+            --border-active: rgba(255, 255, 255, 0.4);
             --text: #ffffff;
             --text-dim: #888888;
+            --text-muted: #4a4a4a;
             --accent: #ffffff;
-            --accent-glow: rgba(255, 255, 255, 0.08);
-            --success: #cccccc;
-            --radius: 12px;
-            --glass: rgba(17, 17, 17, 0.7);
+            --accent-glow: rgba(255, 255, 255, 0.06);
+            --radius: 8px;
         }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            width: 100%;
+            max-width: 720px;
+            display: flex;
+            justify-content: flex-end;
+            padding: 1.25rem 1rem 0;
+        }
+
+        .keys-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.4rem 0.75rem;
+            border-radius: var(--radius);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .keys-btn:hover {
+            color: var(--text);
+            border-color: var(--border-active);
+        }
+
+        .indicator-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            display: inline-block;
+        }
+
+        .indicator-dot.active {
+            background: #ffffff;
         }
 
         header {
             text-align: center;
-            padding: 3rem 1rem 1.5rem;
-            max-width: 600px;
+            padding: 1.5rem 1rem 1.25rem;
+            max-width: 620px;
         }
 
         header h1 {
-            font-size: 2rem;
+            font-size: 1.85rem;
             font-weight: 700;
             letter-spacing: -0.03em;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
             color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .badge-typesafe {
+            font-size: 0.68rem;
+            font-weight: 600;
+            background: var(--accent-glow);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+            padding: 2px 7px;
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
         }
 
         header p {
             color: var(--text-dim);
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             line-height: 1.5;
         }
 
@@ -67,46 +124,97 @@
             gap: 0.25rem;
             background: var(--surface);
             border-radius: var(--radius);
-            padding: 4px;
-            margin-bottom: 1.5rem;
+            padding: 3px;
+            margin-bottom: 0.85rem;
             border: 1px solid var(--border);
         }
 
         .tab {
             flex: 1;
-            padding: 0.65rem;
+            padding: 0.55rem;
             text-align: center;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             font-weight: 500;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             color: var(--text-dim);
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
             border: none;
             background: none;
         }
 
         .tab.active {
             background: var(--accent-glow);
-            color: var(--accent);
+            color: var(--text);
             border: 1px solid var(--border-active);
+        }
+
+        /* Engine Selector */
+        .engine-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.65rem 0.85rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .engine-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+        }
+
+        .engine-options {
+            display: flex;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+        }
+
+        .engine-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.35rem 0.65rem;
+            border-radius: 5px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .engine-btn:hover {
+            color: var(--text);
+            border-color: var(--border-active);
+        }
+
+        .engine-btn.active {
+            background: var(--accent-glow);
+            color: var(--text);
+            border-color: var(--border-active);
         }
 
         /* Drop zone */
         .drop-zone {
-            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border: 1px dashed var(--border);
             border-radius: var(--radius);
-            padding: 3rem 2rem;
+            padding: 2.5rem 1.5rem;
             text-align: center;
             cursor: pointer;
-            transition: all 0.25s ease;
+            transition: border-color 0.15s;
             background: var(--surface);
             position: relative;
         }
 
         .drop-zone:hover, .drop-zone.drag-over {
-            border-color: rgba(255, 255, 255, 0.5);
-            background: var(--accent-glow);
+            border-color: var(--border-active);
+            background: var(--surface-hover);
         }
 
         .drop-zone input[type="file"] {
@@ -116,17 +224,10 @@
             cursor: pointer;
         }
 
-        .drop-zone .icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            display: block;
-            opacity: 0.6;
-        }
-
         .drop-zone .label {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-dim);
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .drop-zone .label strong {
@@ -137,8 +238,8 @@
 
         .preview-img {
             max-width: 100%;
-            max-height: 320px;
-            border-radius: 8px;
+            max-height: 280px;
+            border-radius: 6px;
             display: none;
             object-fit: contain;
         }
@@ -146,7 +247,6 @@
         .drop-zone.has-preview {
             padding: 1rem;
             border-style: solid;
-            border-color: rgba(255, 255, 255, 0.12);
             cursor: default;
             display: flex;
             flex-direction: column;
@@ -157,7 +257,6 @@
             background: var(--surface);
         }
 
-        .drop-zone.has-preview .icon,
         .drop-zone.has-preview .label,
         .drop-zone.has-preview input[type="file"] {
             display: none;
@@ -168,26 +267,26 @@
             top: 0.5rem;
             right: 0.5rem;
             display: none;
-            width: 28px;
-            height: 28px;
+            width: 26px;
+            height: 26px;
             padding: 0;
-            font-size: 0.85rem;
-            line-height: 28px;
+            font-size: 0.8rem;
+            line-height: 26px;
             text-align: center;
-            background: rgba(0, 0, 0, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #ccc;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
             border-radius: 50%;
             cursor: pointer;
             z-index: 2;
         }
 
-        .clear-btn:hover { color: #fff; background: rgba(0, 0, 0, 0.9); }
+        .clear-btn:hover { color: #fff; border-color: var(--border-active); }
         .drop-zone.has-preview .clear-btn { display: block; }
 
         /* Text search */
         .text-search {
-            display: none;
+            display: block;
         }
 
         .text-input {
@@ -198,47 +297,103 @@
             border-radius: var(--radius);
             color: var(--text);
             font-family: inherit;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             resize: vertical;
-            min-height: 100px;
-            transition: border-color 0.2s;
+            min-height: 85px;
+            transition: border-color 0.15s;
         }
 
         .text-input:focus {
             outline: none;
-            border-color: var(--accent);
+            border-color: var(--border-active);
         }
 
         .text-input::placeholder { color: var(--text-dim); }
 
-        /* Button */
+        /* Suggestions */
+        .suggestions {
+            margin-top: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            align-items: center;
+        }
+
+        .suggestions-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-right: 0.2rem;
+        }
+
+        .suggestion-chip {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 0.73rem;
+            padding: 2px 7px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .suggestion-chip:hover {
+            color: var(--text);
+            border-color: var(--border-active);
+            background: var(--surface-hover);
+        }
+
+        /* Action Row */
+        .actions-row {
+            display: flex;
+            gap: 0.6rem;
+            margin-top: 0.85rem;
+        }
+
         .search-btn {
-            width: 100%;
-            padding: 0.8rem;
-            margin-top: 1rem;
+            flex: 2;
+            padding: 0.75rem 1rem;
             font-family: inherit;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             font-weight: 600;
             border: none;
             border-radius: var(--radius);
             background: #ffffff;
             color: #000000;
             cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
+            transition: opacity 0.15s;
         }
 
         .search-btn:hover { opacity: 0.9; }
-        .search-btn:active { transform: scale(0.98); }
         .search-btn:disabled {
-            opacity: 0.4;
+            opacity: 0.35;
             cursor: not-allowed;
+        }
+
+        .benchmark-btn {
+            flex: 1;
+            padding: 0.75rem 0.85rem;
+            font-family: inherit;
+            font-size: 0.82rem;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .benchmark-btn:hover {
+            color: var(--text);
+            border-color: var(--border-active);
+            background: var(--surface-hover);
         }
 
         /* Status */
         .status {
             text-align: center;
-            padding: 1rem;
-            font-size: 0.85rem;
+            padding: 0.85rem;
+            font-size: 0.82rem;
             color: var(--text-dim);
             display: none;
         }
@@ -246,40 +401,131 @@
         .status.loading::after {
             content: '';
             display: inline-block;
-            width: 14px; height: 14px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent);
+            width: 12px; height: 12px;
+            border: 1px solid var(--border);
+            border-top-color: #ffffff;
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
-            margin-left: 0.5rem;
+            margin-left: 0.4rem;
             vertical-align: middle;
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Results */
-        .results {
-            margin-top: 1.5rem;
-        }
-
-        .results h2 {
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-dim);
-            margin-bottom: 1rem;
-        }
-
-        .card {
-            display: flex;
-            gap: 1rem;
-            padding: 1rem;
+        /* Benchmark Box */
+        .benchmark-box {
+            display: none;
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .benchmark-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 0.75rem;
-            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .benchmark-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .benchmark-stats {
+            display: flex;
+            gap: 1.25rem;
+            margin-bottom: 0.75rem;
+            padding: 0.45rem 0.75rem;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        .benchmark-stat-val {
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .benchmark-table {
+            width: 100%;
+            font-size: 0.78rem;
+            border-collapse: collapse;
+        }
+
+        .benchmark-table th {
+            text-align: left;
+            padding: 4px 6px;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+        }
+
+        .benchmark-table td {
+            padding: 5px 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-weight: 400;
+            color: var(--text-dim);
+        }
+
+        .benchmark-table td strong {
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        /* Results Meta Header */
+        .results-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .results-meta h2 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+        }
+
+        .results-tag {
+            font-size: 0.74rem;
+            font-weight: 400;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .results-tag strong {
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        /* Card */
+        .card {
+            display: flex;
+            gap: 1rem;
+            padding: 0.9rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 0.65rem;
+            transition: border-color 0.15s, background 0.15s;
             text-decoration: none;
             color: inherit;
             cursor: pointer;
@@ -292,10 +538,10 @@
         }
 
         .card-thumb {
-            width: 120px;
-            height: 90px;
+            width: 110px;
+            height: 85px;
             object-fit: contain;
-            border-radius: 6px;
+            border-radius: 4px;
             background: #fff;
             flex-shrink: 0;
         }
@@ -306,30 +552,40 @@
         }
 
         .card-title {
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 600;
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.2rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.45rem;
+            flex-wrap: wrap;
         }
 
         .card-num {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--text-dim);
             background: var(--accent-glow);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .card-score {
+            font-size: 0.74rem;
+            font-weight: 400;
+            color: var(--text-dim);
+            margin-left: auto;
+            border: 1px solid var(--border);
             padding: 2px 6px;
             border-radius: 4px;
         }
 
-        .card-score {
-            font-size: 0.75rem;
-            color: var(--success);
-            margin-left: auto;
+        .card-score strong {
+            color: #ffffff;
+            font-weight: 700;
         }
 
         .card-desc {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-dim);
             line-height: 1.4;
             overflow: hidden;
@@ -354,21 +610,21 @@
 
         .card-expanded-img {
             width: 100%;
-            max-height: 500px;
+            max-height: 480px;
             object-fit: contain;
-            border-radius: 8px;
+            border-radius: 6px;
             background: #fff;
-            margin-bottom: 1rem;
+            margin-bottom: 0.85rem;
         }
 
         .card-section-label {
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.05em;
             color: var(--text-dim);
-            margin-bottom: 0.35rem;
-            margin-top: 0.75rem;
+            margin-bottom: 0.25rem;
+            margin-top: 0.65rem;
         }
 
         .card-section-label:first-child {
@@ -376,17 +632,17 @@
         }
 
         .card-section-text {
-            font-size: 0.82rem;
-            color: #cccccc;
-            line-height: 1.6;
+            font-size: 0.8rem;
+            color: #d1d1d1;
+            line-height: 1.5;
             white-space: pre-wrap;
             word-break: break-word;
         }
 
         .card-link {
-            font-size: 0.75rem;
+            font-size: 0.73rem;
             color: var(--text-dim);
-            margin-top: 0.75rem;
+            margin-top: 0.65rem;
         }
 
         .card-link a {
@@ -394,42 +650,323 @@
             text-decoration: underline;
         }
 
-        @media (max-width: 480px) {
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(2px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal-dialog {
+            background: var(--surface);
+            border: 1px solid var(--border-active);
+            border-radius: var(--radius);
+            width: 100%;
+            max-width: 440px;
+            padding: 1.25rem;
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.85rem;
+        }
+
+        .modal-header h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 2px 6px;
+        }
+
+        .modal-close:hover { color: #fff; }
+
+        .modal-hint {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.45;
+            margin-bottom: 1rem;
+        }
+
+        .modal-hint code {
+            background: rgba(255, 255, 255, 0.07);
+            padding: 1px 4px;
+            border-radius: 3px;
+            color: #fff;
+        }
+
+        .field-group {
+            margin-bottom: 1rem;
+        }
+
+        .field-label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.35rem;
+        }
+
+        .field-label-row label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .field-link {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            text-decoration: underline;
+        }
+
+        .field-link:hover { color: #fff; }
+
+        .password-wrapper {
+            display: flex;
+            position: relative;
+        }
+
+        .key-input {
+            width: 100%;
+            padding: 0.55rem 3.2rem 0.55rem 0.75rem;
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: monospace;
+            font-size: 0.8rem;
+            transition: border-color 0.15s;
+        }
+
+        .key-input:focus {
+            outline: none;
+            border-color: var(--border-active);
+        }
+
+        .toggle-btn {
+            position: absolute;
+            right: 0.4rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            padding: 2px 5px;
+        }
+
+        .toggle-btn:hover { color: #fff; }
+
+        .field-status {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-top: 0.3rem;
+        }
+
+        .field-status.configured {
+            color: #d1d1d1;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-top: 1.25rem;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.5rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-secondary:hover {
+            color: #fff;
+            border-color: var(--border-active);
+        }
+
+        .btn-primary {
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        .btn-primary:hover { opacity: 0.9; }
+
+        @media (max-width: 520px) {
             .card { flex-direction: column; }
-            .card img { width: 100%; height: auto; max-height: 160px; }
+            .card img { width: 100%; height: auto; max-height: 150px; }
+            .actions-row { flex-direction: column; }
+            .benchmark-stats { flex-direction: column; gap: 0.3rem; }
+            .modal-footer { flex-direction: column; }
         }
     </style>
 </head>
 <body>
+    <div class="top-bar">
+        <button class="keys-btn" id="open-keys-btn" title="Configure API keys">
+            <span>API Keys</span>
+            <span class="indicator-dot" id="keys-status-dot"></span>
+        </button>
+    </div>
+
     <header>
-        <h1>XKCD Reverse Lookup</h1>
-        <p>Upload a comic image or describe it — find which XKCD it is, powered by Gemini multimodal embeddings.</p>
+        <h1>XKCD Reverse Lookup <span class="badge-typesafe">TypeSafe AI</span></h1>
+        <p>Search XKCD comics with TypeSafe System One (Jev) or Gemini Multimodal Embeddings.</p>
     </header>
 
     <main>
         <div class="tabs" role="tablist">
-            <button class="tab active" data-mode="image" role="tab" id="tab-image">📷 Image Upload</button>
-            <button class="tab" data-mode="text" role="tab" id="tab-text">✏️ Text Search</button>
+            <button class="tab active" data-mode="text" role="tab" id="tab-text">Text Search</button>
+            <button class="tab" data-mode="image" role="tab" id="tab-image">Image Upload</button>
         </div>
 
-        <div class="image-search" id="image-panel">
+        <!-- Engine Selector -->
+        <div class="engine-card">
+            <span class="engine-label">Engine</span>
+            <div class="engine-options">
+                <button class="engine-btn active" data-engine="typesafe" title="TypeSafe Jev direct semantic choice">
+                    TypeSafe Jev <span style="font-size:0.7rem;opacity:0.6;">(120ms)</span>
+                </button>
+                <button class="engine-btn" data-engine="chroma" title="Gemini embedding + ChromaDB vector search">
+                    Gemini + Chroma
+                </button>
+                <button class="engine-btn" data-engine="rerank" title="ChromaDB vector retrieval re-ranked by TypeSafe Jev">
+                    Hybrid Re-rank
+                </button>
+            </div>
+        </div>
+
+        <div class="text-search" id="text-panel">
+            <textarea class="text-input" id="text-input" placeholder="Describe the XKCD comic… e.g. 'the space shuttle is actually a mammal with bones'" rows="3"></textarea>
+            
+            <div class="suggestions">
+                <span class="suggestions-label">Examples:</span>
+                <button class="suggestion-chip" data-query="the space shuttle is actually a mammal with bones">Space Shuttle Mammal</button>
+                <button class="suggestion-chip" data-query="vibrating rapidly to create blur in fast shutter speed photos">Motion Blur</button>
+                <button class="suggestion-chip" data-query="rolling a die with sixty-five thousand five hundred thirty-six sides">d65536</button>
+                <button class="suggestion-chip" data-query="sears tower was the tallest tower or building in the 90s">Sears Tower</button>
+                <button class="suggestion-chip" data-query="regular and electron types of scopes like telescope and kaleidoscope">Types of Scopes</button>
+            </div>
+        </div>
+
+        <div class="image-search" id="image-panel" style="display: none;">
             <div class="drop-zone" id="drop-zone">
                 <input type="file" accept="image/*" id="file-input">
-                <span class="icon">🖼️</span>
-                <div class="label">Drop, paste, or <strong>click to browse</strong> an XKCD comic</div>
+                <div class="label">Drop, paste, or <strong>browse</strong> an XKCD comic image</div>
                 <img class="preview-img" id="preview-img" alt="Preview">
                 <button class="clear-btn" id="clear-btn">✕</button>
             </div>
         </div>
 
-        <div class="text-search" id="text-panel">
-            <textarea class="text-input" id="text-input" placeholder="Describe the XKCD comic… e.g. 'someone is coding at a desk while their friend tries to talk to them about going outside'" rows="4"></textarea>
+        <div class="actions-row">
+            <button class="search-btn" id="search-btn" disabled>Search</button>
+            <button class="benchmark-btn" id="benchmark-btn">Benchmark Speed</button>
         </div>
 
-        <button class="search-btn" id="search-btn" disabled>Search</button>
         <div class="status" id="status"></div>
+
+        <!-- Benchmark Box -->
+        <div class="benchmark-box" id="benchmark-box">
+            <div class="benchmark-header">
+                <span class="benchmark-title">TypeSafe Speed Benchmark</span>
+                <button id="close-bench-btn" style="background:none;border:none;color:var(--text-dim);cursor:pointer;">✕</button>
+            </div>
+            <div class="benchmark-stats" id="benchmark-stats">
+                <div>Model: <span class="benchmark-stat-val" id="bench-model">jev-latest</span></div>
+                <div>Avg: <span class="benchmark-stat-val" id="bench-avg">-</span></div>
+                <div>P50: <span class="benchmark-stat-val" id="bench-p50">-</span></div>
+                <div>Min/Max: <span class="benchmark-stat-val" id="bench-minmax">-</span></div>
+            </div>
+            <table class="benchmark-table">
+                <thead>
+                    <tr>
+                        <th>Query</th>
+                        <th>Match</th>
+                        <th>Probability</th>
+                        <th>Confidence</th>
+                        <th>Latency</th>
+                    </tr>
+                </thead>
+                <tbody id="benchmark-table-body">
+                </tbody>
+            </table>
+        </div>
+
         <div class="results" id="results"></div>
     </main>
+
+    <!-- API Keys Modal -->
+    <div class="modal-overlay" id="keys-modal" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>API Keys</h3>
+                <button class="modal-close" id="close-keys-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-hint">Keys are saved locally in your browser's <code>localStorage</code> and passed in request headers.</p>
+                
+                <div class="field-group">
+                    <div class="field-label-row">
+                        <label for="typesafe-key-input">TypeSafe API Key</label>
+                        <a href="https://console.typesafe.ai" target="_blank" rel="noopener" class="field-link">console.typesafe.ai</a>
+                    </div>
+                    <div class="password-wrapper">
+                        <input type="password" id="typesafe-key-input" class="key-input" placeholder="apikey_..." autocomplete="off">
+                        <button type="button" class="toggle-btn" data-target="typesafe-key-input">Show</button>
+                    </div>
+                    <div class="field-status" id="typesafe-key-status">Checking...</div>
+                </div>
+
+                <div class="field-group">
+                    <div class="field-label-row">
+                        <label for="gemini-key-input">Gemini API Key</label>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="field-link">aistudio.google.com</a>
+                    </div>
+                    <div class="password-wrapper">
+                        <input type="password" id="gemini-key-input" class="key-input" placeholder="AIzaSy..." autocomplete="off">
+                        <button type="button" class="toggle-btn" data-target="gemini-key-input">Show</button>
+                    </div>
+                    <div class="field-status" id="gemini-key-status">Checking...</div>
+                    <div class="field-status" id="chroma-index-note" style="display:none;margin-top:0.35rem;line-height:1.4;">
+                        Note: Chroma collection <code>xkcd_images</code> is unindexed.
+                        <button type="button" class="btn-secondary" id="modal-build-index-btn" style="display:inline-block;margin-top:0.35rem;padding:2px 8px;font-size:0.75rem;">Build Chroma Index</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="clear-keys-btn">Reset to Defaults</button>
+                <button class="btn-primary" id="save-keys-btn">Save</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const tabs = document.querySelectorAll('.tab');
@@ -439,14 +976,192 @@
         const previewImg = document.getElementById('preview-img');
         const textInput = document.getElementById('text-input');
         const searchBtn = document.getElementById('search-btn');
+        const benchmarkBtn = document.getElementById('benchmark-btn');
+        const benchmarkBox = document.getElementById('benchmark-box');
+        const closeBenchBtn = document.getElementById('close-bench-btn');
         const statusEl = document.getElementById('status');
         const resultsEl = document.getElementById('results');
         const dropZone = document.getElementById('drop-zone');
+        const engineBtns = document.querySelectorAll('.engine-btn');
+        const suggestionChips = document.querySelectorAll('.suggestion-chip');
 
-        let mode = 'image';
+        // Modal elements
+        const openKeysBtn = document.getElementById('open-keys-btn');
+        const closeKeysBtn = document.getElementById('close-keys-btn');
+        const keysModal = document.getElementById('keys-modal');
+        const typesafeKeyInput = document.getElementById('typesafe-key-input');
+        const geminiKeyInput = document.getElementById('gemini-key-input');
+        const typesafeKeyStatus = document.getElementById('typesafe-key-status');
+        const geminiKeyStatus = document.getElementById('gemini-key-status');
+        const saveKeysBtn = document.getElementById('save-keys-btn');
+        const clearKeysBtn = document.getElementById('clear-keys-btn');
+        const keysStatusDot = document.getElementById('keys-status-dot');
+
+        let mode = 'text';
+        let selectedEngine = 'typesafe';
         let selectedFile = null;
+        let serverKeysStatus = { typesafe_configured: false, gemini_configured: false };
 
-        // Tab switching
+        function getAuthHeaders() {
+            const headers = {};
+            const tsKey = localStorage.getItem('xkcd_typesafe_key');
+            const gmKey = localStorage.getItem('xkcd_gemini_key');
+            if (tsKey) headers['x-typesafe-api-key'] = tsKey;
+            if (gmKey) headers['x-gemini-api-key'] = gmKey;
+            return headers;
+        }
+
+        async function checkKeysStatus() {
+            try {
+                const resp = await fetch('/api/keys/status');
+                if (resp.ok) {
+                    serverKeysStatus = await resp.json();
+                }
+            } catch (e) {
+                console.warn('Could not check keys status:', e);
+            }
+
+            const localTs = localStorage.getItem('xkcd_typesafe_key');
+            const localGm = localStorage.getItem('xkcd_gemini_key');
+
+            if (localTs) {
+                typesafeKeyInput.value = localTs;
+                typesafeKeyStatus.textContent = 'Custom browser key active';
+                typesafeKeyStatus.className = 'field-status configured';
+            } else if (serverKeysStatus.typesafe_configured) {
+                typesafeKeyStatus.textContent = `Server key active (${serverKeysStatus.typesafe_masked || 'configured'})`;
+                typesafeKeyStatus.className = 'field-status configured';
+            } else {
+                typesafeKeyStatus.textContent = 'Not configured';
+                typesafeKeyStatus.className = 'field-status';
+            }
+
+            if (localGm) {
+                geminiKeyInput.value = localGm;
+                geminiKeyStatus.textContent = 'Custom browser key active';
+                geminiKeyStatus.className = 'field-status configured';
+            } else if (serverKeysStatus.gemini_configured) {
+                geminiKeyStatus.textContent = `Server key active (${serverKeysStatus.gemini_masked || 'configured'})`;
+                geminiKeyStatus.className = 'field-status configured';
+            } else {
+                geminiKeyStatus.textContent = 'Not configured (only needed for Gemini + Chroma)';
+                geminiKeyStatus.className = 'field-status';
+            }
+
+            if (!serverKeysStatus.chroma_indexed) {
+                const chromaNote = document.getElementById('chroma-index-note');
+                if (chromaNote) chromaNote.style.display = 'block';
+            }
+
+            const hasTs = localTs || serverKeysStatus.typesafe_configured;
+            if (hasTs) {
+                keysStatusDot.classList.add('active');
+            } else {
+                keysStatusDot.classList.remove('active');
+            }
+        }
+        checkKeysStatus();
+
+        openKeysBtn.addEventListener('click', () => {
+            keysModal.style.display = 'flex';
+        });
+
+        closeKeysBtn.addEventListener('click', () => {
+            keysModal.style.display = 'none';
+        });
+
+        keysModal.addEventListener('click', (e) => {
+            if (e.target === keysModal) keysModal.style.display = 'none';
+        });
+
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetInput = document.getElementById(btn.dataset.target);
+                if (targetInput.type === 'password') {
+                    targetInput.type = 'text';
+                    btn.textContent = 'Hide';
+                } else {
+                    targetInput.type = 'password';
+                    btn.textContent = 'Show';
+                }
+            });
+        });
+
+        saveKeysBtn.addEventListener('click', () => {
+            const tsVal = typesafeKeyInput.value.trim();
+            const gmVal = geminiKeyInput.value.trim();
+
+            if (tsVal) localStorage.setItem('xkcd_typesafe_key', tsVal);
+            else localStorage.removeItem('xkcd_typesafe_key');
+
+            if (gmVal) localStorage.setItem('xkcd_gemini_key', gmVal);
+            else localStorage.removeItem('xkcd_gemini_key');
+
+            checkKeysStatus();
+            keysModal.style.display = 'none';
+        });
+
+        clearKeysBtn.addEventListener('click', () => {
+            localStorage.removeItem('xkcd_typesafe_key');
+            localStorage.removeItem('xkcd_gemini_key');
+            typesafeKeyInput.value = '';
+            geminiKeyInput.value = '';
+            checkKeysStatus();
+            keysModal.style.display = 'none';
+        });
+
+        async function triggerBuildIndex() {
+            const gmKey = (geminiKeyInput.value || '').trim() || localStorage.getItem('xkcd_gemini_key');
+            if (!gmKey && !serverKeysStatus.gemini_configured) {
+                keysModal.style.display = 'flex';
+                geminiKeyInput.focus();
+                return;
+            }
+
+            const buildBtn = document.getElementById('modal-build-index-btn');
+            const errBuildBtn = document.getElementById('err-build-index-btn');
+            if (buildBtn) { buildBtn.disabled = true; buildBtn.textContent = 'Building index…'; }
+            if (errBuildBtn) { errBuildBtn.disabled = true; errBuildBtn.textContent = 'Building index…'; }
+
+            statusEl.textContent = 'Building ChromaDB vector index (~25s)...';
+            statusEl.className = 'status loading';
+            statusEl.style.display = 'block';
+
+            try {
+                const resp = await fetch('/api/index', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                });
+                const d = await resp.json();
+                if (!resp.ok || d.error) {
+                    statusEl.textContent = `Index Error: ${d.error || 'Failed to build index'}`;
+                    statusEl.className = 'status';
+                    return;
+                }
+                statusEl.textContent = `Index complete: ${d.indexed} comics indexed in ChromaDB.`;
+                statusEl.className = 'status';
+                serverKeysStatus.chroma_indexed = true;
+                const note = document.getElementById('chroma-index-note');
+                if (note) note.style.display = 'none';
+            } catch (e) {
+                statusEl.textContent = `Index Error: ${e.message}`;
+                statusEl.className = 'status';
+            } finally {
+                if (buildBtn) { buildBtn.disabled = false; buildBtn.textContent = 'Build Chroma Index'; }
+                if (errBuildBtn) { errBuildBtn.disabled = false; errBuildBtn.textContent = 'Build Chroma Index'; }
+            }
+        }
+
+        document.getElementById('modal-build-index-btn')?.addEventListener('click', triggerBuildIndex);
+
+        engineBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                engineBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedEngine = btn.dataset.engine;
+            });
+        });
+
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 mode = tab.dataset.mode;
@@ -455,6 +1170,14 @@
                 imagePanel.style.display = mode === 'image' ? 'block' : 'none';
                 textPanel.style.display = mode === 'text' ? 'block' : 'none';
                 updateSearchBtn();
+            });
+        });
+
+        suggestionChips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                textInput.value = chip.dataset.query;
+                updateSearchBtn();
+                searchBtn.click();
             });
         });
 
@@ -480,12 +1203,10 @@
             clearPreview();
         });
 
-        // File input
         fileInput.addEventListener('change', (e) => {
             if (e.target.files[0]) showPreview(e.target.files[0]);
         });
 
-        // Drag & drop
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
         dropZone.addEventListener('drop', (e) => {
@@ -494,7 +1215,6 @@
             if (e.dataTransfer.files.length) showPreview(e.dataTransfer.files[0]);
         });
 
-        // Clipboard paste
         document.addEventListener('paste', (e) => {
             if (mode !== 'image') return;
             const items = e.clipboardData?.items;
@@ -508,7 +1228,6 @@
             }
         });
 
-        // Text input
         textInput.addEventListener('input', updateSearchBtn);
 
         function updateSearchBtn() {
@@ -518,8 +1237,8 @@
                 searchBtn.disabled = !textInput.value.trim();
             }
         }
+        updateSearchBtn();
 
-        // Search
         searchBtn.addEventListener('click', async () => {
             searchBtn.disabled = true;
             statusEl.textContent = 'Searching…';
@@ -528,6 +1247,8 @@
             resultsEl.innerHTML = '';
 
             const formData = new FormData();
+            formData.append('engine', selectedEngine);
+
             if (mode === 'image' && selectedFile) {
                 formData.append('file', selectedFile);
             } else if (mode === 'text') {
@@ -535,11 +1256,36 @@
             }
 
             try {
-                const resp = await fetch('/api/search', { method: 'POST', body: formData });
+                const resp = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: formData
+                });
                 if (!resp.ok) {
                     const text = await resp.text();
-                    try { const j = JSON.parse(text); statusEl.textContent = `Error: ${j.error || j.detail || 'Server error'}`; }
-                    catch { statusEl.textContent = `Error: ${resp.status} — ${text.slice(0, 100)}`; }
+                    let errMsg = 'Server error';
+                    try { 
+                        const j = JSON.parse(text); 
+                        errMsg = j.error || j.detail || errMsg;
+                    } catch { 
+                        errMsg = `${resp.status} — ${text.slice(0, 100)}`; 
+                    }
+
+                    if (errMsg.includes('xkcd_images') || errMsg.includes('ChromaDB collection')) {
+                        statusEl.innerHTML = `<div>${escHtml(errMsg)}</div>
+                            <div style="margin-top:0.6rem;display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">
+                                <button type="button" class="btn-primary" id="err-switch-typesafe" style="padding:4px 10px;font-size:0.75rem;">Switch to TypeSafe Jev (Instant)</button>
+                                <button type="button" class="btn-secondary" id="err-build-index-btn" style="padding:4px 10px;font-size:0.75rem;">Build Chroma Index</button>
+                            </div>`;
+                        document.getElementById('err-switch-typesafe')?.addEventListener('click', () => {
+                            document.querySelector('[data-engine="typesafe"]')?.click();
+                            statusEl.style.display = 'none';
+                            searchBtn.click();
+                        });
+                        document.getElementById('err-build-index-btn')?.addEventListener('click', triggerBuildIndex);
+                    } else {
+                        statusEl.textContent = `Error: ${errMsg}`;
+                    }
                     statusEl.className = 'status';
                     return;
                 }
@@ -552,7 +1298,7 @@
                 }
 
                 statusEl.style.display = 'none';
-                renderResults(data.results);
+                renderResults(data);
             } catch (err) {
                 statusEl.textContent = `Error: ${err.message}`;
                 statusEl.className = 'status';
@@ -561,25 +1307,119 @@
             }
         });
 
+        benchmarkBtn.addEventListener('click', async () => {
+            benchmarkBtn.disabled = true;
+            benchmarkBtn.textContent = 'Benchmarking…';
+            statusEl.textContent = 'Running speed benchmark…';
+            statusEl.className = 'status loading';
+            statusEl.style.display = 'block';
+            benchmarkBox.style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/benchmark', {
+                    headers: getAuthHeaders()
+                });
+                const data = await resp.json();
+                statusEl.style.display = 'none';
+
+                if (data.error) {
+                    statusEl.textContent = `Benchmark Error: ${data.error}`;
+                    statusEl.className = 'status';
+                    return;
+                }
+
+                renderBenchmark(data);
+            } catch (err) {
+                statusEl.textContent = `Benchmark Error: ${err.message}`;
+                statusEl.className = 'status';
+            } finally {
+                benchmarkBtn.disabled = false;
+                benchmarkBtn.textContent = 'Benchmark Speed';
+            }
+        });
+
+        closeBenchBtn.addEventListener('click', () => {
+            benchmarkBox.style.display = 'none';
+        });
+
+        function renderBenchmark(data) {
+            document.getElementById('bench-model').textContent = data.model;
+            document.getElementById('bench-avg').textContent = `${data.avg_latency_ms}ms`;
+            document.getElementById('bench-p50').textContent = `${data.p50_latency_ms}ms`;
+            document.getElementById('bench-minmax').textContent = `${data.min_latency_ms}ms / ${data.max_latency_ms}ms`;
+
+            const tbody = document.getElementById('benchmark-table-body');
+            tbody.innerHTML = '';
+
+            for (const q of data.queries) {
+                const tr = document.createElement('tr');
+                const probPct = q.probability != null ? `<strong>${(q.probability * 100).toFixed(0)}%</strong>` : '-';
+                const confPct = q.confidence != null ? `<strong>${(q.confidence * 100).toFixed(0)}%</strong>` : '-';
+                tr.innerHTML = `
+                    <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(q.query)}">${escHtml(q.query)}</td>
+                    <td><strong>#${q.top_match_id}</strong> ${escHtml(q.top_match_title || '')}</td>
+                    <td>${probPct}</td>
+                    <td>${confPct}</td>
+                    <td><strong>${q.latency_ms.toFixed(1)}ms</strong></td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            benchmarkBox.style.display = 'block';
+            benchmarkBox.scrollIntoView({ behavior: 'smooth' });
+        }
+
         function escHtml(s) {
             const d = document.createElement('div');
             d.textContent = s;
             return d.innerHTML;
         }
 
-        function renderResults(results) {
+        function renderResults(data) {
+            const results = data.results || [];
+            const latency = data.latency_ms || data.total_latency_ms;
+            const engine = data.engine || selectedEngine;
+            const model = data.model || '';
+            const hasMatch = data.has_match_noul;
+
             if (!results.length) {
-                resultsEl.innerHTML = '<p style="color:var(--text-dim);text-align:center;">No results found.</p>';
+                resultsEl.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:2rem;">No results found.</p>';
                 return;
             }
 
-            let html = '<h2>Top Matches</h2>';
+            let engineBadge = '';
+            if (engine === 'typesafe') {
+                engineBadge = `TypeSafe <strong>${model}</strong> · <strong>${latency}ms</strong>`;
+            } else if (engine === 'rerank') {
+                engineBadge = `Hybrid Re-rank <strong>${model}</strong> · <strong>${latency}ms</strong>`;
+            } else {
+                engineBadge = `Gemini + Chroma · <strong>${latency}ms</strong>`;
+            }
+
+            let matchNoulBadge = '';
+            if (hasMatch != null) {
+                const noulPct = (hasMatch * 100).toFixed(0);
+                matchNoulBadge = `<span class="results-tag">Match check: <strong>${noulPct}%</strong></span>`;
+            }
+
+            let html = `
+                <div class="results-meta">
+                    <h2>Top Matches</h2>
+                    <div style="display:flex;gap:0.4rem;align-items:center;">
+                        <span class="results-tag">${engineBadge}</span>
+                        ${matchNoulBadge}
+                    </div>
+                </div>`;
+
             for (const r of results) {
+                const isProb = engine === 'typesafe' || engine === 'rerank';
                 const pctNum = (r.score * 100).toFixed(1);
-                const simNum = r.score.toFixed(2);
-                const preview = (r.transcript || r.explanation || '').slice(0, 120);
+                const scoreLabel = isProb ? `Prob <strong>${pctNum}%</strong>` : `Sim <strong>${r.score.toFixed(2)}</strong>`;
+                const confLabel = r.confidence ? ` · Conf <strong>${(r.confidence * 100).toFixed(0)}%</strong>` : '';
+                const preview = (r.transcript || r.explanation || '').slice(0, 130);
                 const transcript = r.transcript || '';
                 const explanation = r.explanation || '';
+                
                 html += `
                     <div class="card" onclick="this.classList.toggle('expanded')">
                         <img class="card-thumb" src="/comics/images/${r.filename}" alt="${escHtml(r.title)}" loading="lazy">
@@ -587,7 +1427,7 @@
                             <div class="card-title">
                                 ${escHtml(r.title)}
                                 <span class="card-num">#${r.comic_id}</span>
-                                <span class="card-score">${pctNum}% · sim ${simNum}</span>
+                                <span class="card-score">${scoreLabel}${confLabel}</span>
                             </div>
                             <div class="card-desc">${escHtml(preview)}</div>
                             <div class="card-expanded-content">

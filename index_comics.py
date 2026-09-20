@@ -12,7 +12,7 @@ IMAGES_DIR = os.path.join(COMICS_DIR, "images")
 METADATA_FILE = os.path.join(COMICS_DIR, "metadata.json")
 
 
-def index_comics():
+def index_comics(api_key: str | None = None) -> int:
     """Embed every comic image AND its text, store in ChromaDB."""
     with open(METADATA_FILE) as f:
         comics = json.load(f)
@@ -45,7 +45,7 @@ def index_comics():
         num = comic["num"]
         path = os.path.join(IMAGES_DIR, comic["filename"])
         if not os.path.exists(path):
-            print(f"  ⚠ Skipping #{num}: image not found")
+            print(f"  Skipping #{num}: image not found")
             continue
 
         ext = os.path.splitext(comic["filename"])[-1].lower()
@@ -76,22 +76,24 @@ def index_comics():
             doc_id = str(num)
 
             # Image embedding
-            img_vec = embed_image(image_bytes, mime_type)
+            img_vec = embed_image(image_bytes, mime_type, api_key=api_key)
             img_col.add(ids=[doc_id], embeddings=[img_vec], metadatas=[meta])
             time.sleep(0.25)
 
             # Text embedding
-            txt_vec = embed_text(text_blob[:2000])
+            txt_vec = embed_text(text_blob[:2000], api_key=api_key)
             txt_col.add(ids=[doc_id], embeddings=[txt_vec], metadatas=[meta])
             time.sleep(0.25)
 
             indexed += 1
         except Exception as e:
-            print(f"  ⚠ Failed #{num}: {e}")
+            print(f"  Failed #{num}: {e}")
             continue
 
-    print(f"✅ Indexed {indexed} comics in ChromaDB (image + text collections)")
+    print(f"Indexed {indexed} comics in ChromaDB (image + text collections)")
+    return indexed
 
 
 if __name__ == "__main__":
-    index_comics()
+    key = sys.argv[1] if len(sys.argv) > 1 else None
+    index_comics(api_key=key)
