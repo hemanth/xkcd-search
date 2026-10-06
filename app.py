@@ -18,6 +18,7 @@ from engine import (
     search_typesafe,
     rerank_with_typesafe,
     IMAGE_COLLECTION,
+    MODEL,
     TYPESAFE_MODEL,
 )
 
@@ -94,8 +95,8 @@ async def search_comics(
     """Search XKCD comics with selected engine:
 
     - typesafe: TypeSafe System One (Jev) direct semantic choice & calibrated probability.
-    - chroma: Gemini Multimodal Embedding (gemini-embedding-2-preview) + ChromaDB vector search.
-    - rerank: Gemini + ChromaDB vector retrieval re-ranked by TypeSafe Jev.
+    - chroma: EmbeddingGemma 2 (google/embeddinggemma-2) / Gemini Multimodal Embedding + ChromaDB vector search.
+    - rerank: EmbeddingGemma 2 / ChromaDB vector retrieval re-ranked by TypeSafe Jev.
     - auto: image -> chroma; text -> typesafe.
     """
     try:
@@ -109,13 +110,8 @@ async def search_comics(
         if engine == "auto":
             engine = "chroma" if (file and file.filename) else "typesafe"
 
-        # 1. Image upload search (Gemini Multimodal Embedding)
+        # 1. Image upload search (EmbeddingGemma 2 / Gemini Multimodal Embedding)
         if file and file.filename:
-            if not gm_key:
-                return JSONResponse({
-                    "error": "Gemini API key is required for image search. Please add your key in the API Keys menu or set GEMINI_API_KEY."
-                }, status_code=400)
-
             image_bytes = await file.read()
             mime = file.content_type or "image/png"
             t0 = time.perf_counter()
@@ -138,7 +134,7 @@ async def search_comics(
             return {
                 "results": results[:top_k],
                 "engine": "chroma",
-                "model": "gemini-embedding-2-preview",
+                "model": MODEL,
                 "latency_ms": round(latency_ms, 1),
             }
 
@@ -158,33 +154,23 @@ async def search_comics(
             return resp
 
         elif engine == "chroma":
-            if not gm_key:
-                return JSONResponse({
-                    "error": "Gemini API key is required for Gemini + Chroma search. Please set your key in API Keys or switch to TypeSafe Jev."
-                }, status_code=400)
-
             t0 = time.perf_counter()
             embedding = embed_text(query, api_key=gm_key)
             try:
                 results = search(embedding, query_type="text", top_k=top_k)
             except ValueError:
                 return JSONResponse({
-                    "error": "ChromaDB collection [xkcd_images] does not exist yet. Run 'python index_comics.py' with GEMINI_API_KEY to build it, or switch to TypeSafe Jev above which searches instantly without an index."
+                    "error": "ChromaDB collection [xkcd_images] does not exist yet. Run 'python index_comics.py' to build it, or switch to TypeSafe Jev above which searches instantly without an index."
                 }, status_code=400)
             t1 = time.perf_counter()
             return {
                 "results": results,
                 "engine": "chroma",
-                "model": "gemini-embedding-2-preview",
+                "model": MODEL,
                 "latency_ms": round((t1 - t0) * 1000, 1),
             }
 
         elif engine == "rerank":
-            if not gm_key:
-                # If Gemini key not available, seamlessly fall back to direct TypeSafe search
-                resp = await search_typesafe(query, top_k=top_k, model=ts_model, api_key=ts_key)
-                return resp
-
             try:
                 t0 = time.perf_counter()
                 embedding = embed_text(query, api_key=gm_key)
@@ -195,7 +181,7 @@ async def search_comics(
                 rerank_resp["chroma_latency_ms"] = round(t_chroma, 1)
                 rerank_resp["total_latency_ms"] = round(t_chroma + rerank_resp["latency_ms"], 1)
                 return rerank_resp
-            except ValueError:
+            except Exception:
                 # Chroma index missing -> seamlessly fall back to direct TypeSafe Jev search
                 resp = await search_typesafe(query, top_k=top_k, model=ts_model, api_key=ts_key)
                 return resp
@@ -267,11 +253,6 @@ async def run_benchmark(
 async def build_index(request: Request):
     """Build ChromaDB vector index using the provided Gemini API key."""
     gm_key = request.headers.get("x-gemini-api-key") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not gm_key:
-        return JSONResponse(
-            {"error": "Gemini API key is required to build ChromaDB embeddings. Please enter your key in API Keys first."},
-            status_code=400,
-        )
 
     try:
         from index_comics import index_comics

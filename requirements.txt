@@ -7,3 +7,6 @@ python-multipart>=0.0.9
 python-dotenv>=1.0.0
 datasets>=3.0.0
 typesafe-sdk>=0.5.7
+sentence-transformers>=5.0.0
+torch>=2.4.0
+Pillow>=10.0.0

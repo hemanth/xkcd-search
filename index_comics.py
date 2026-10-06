@@ -55,17 +55,16 @@ def index_comics(api_key: str | None = None) -> int:
         with open(path, "rb") as f:
             image_bytes = f.read()
 
-        # Build text blob from title + transcript
-        title = comic.get("title", "")
+        # Build text blob from title + transcript formatted for EmbeddingGemma 2
+        title = comic.get("title", "") or "none"
         transcript = comic.get("transcript", "")
         explanation = comic.get("explanation", "")
-        text_blob = f"{title}. {transcript}".strip()
-        if not text_blob or text_blob == ".":
-            text_blob = f"{title}. {explanation}".strip()
+        content = transcript if transcript else explanation
+        text_blob = f"title: {title} | text: {content}".strip()
 
         # Metadata to store alongside embeddings
         meta = {
-            "title": title,
+            "title": comic.get("title", ""),
             "transcript": transcript[:4000],       # ChromaDB metadata size limit
             "explanation": explanation[:4000],
             "filename": comic["filename"],
@@ -81,7 +80,7 @@ def index_comics(api_key: str | None = None) -> int:
             time.sleep(0.25)
 
             # Text embedding
-            txt_vec = embed_text(text_blob[:2000], api_key=api_key)
+            txt_vec = embed_text(text_blob[:2000], api_key=api_key, prompt_name="Document")
             txt_col.add(ids=[doc_id], embeddings=[txt_vec], metadatas=[meta])
             time.sleep(0.25)
 

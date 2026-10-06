@@ -839,7 +839,7 @@
 
     <header>
         <h1>XKCD Reverse Lookup <span class="badge-typesafe">TypeSafe AI</span></h1>
-        <p>Search XKCD comics with TypeSafe System One (Jev) or Gemini Multimodal Embeddings.</p>
+        <p>Search XKCD comics with TypeSafe System One (Jev) or EmbeddingGemma 2 / Gemini Multimodal Embeddings.</p>
     </header>
 
     <main>
@@ -855,8 +855,8 @@
                 <button class="engine-btn active" data-engine="typesafe" title="TypeSafe Jev direct semantic choice">
                     TypeSafe Jev <span style="font-size:0.7rem;opacity:0.6;">(120ms)</span>
                 </button>
-                <button class="engine-btn" data-engine="chroma" title="Gemini embedding + ChromaDB vector search">
-                    Gemini + Chroma
+                <button class="engine-btn" data-engine="chroma" title="EmbeddingGemma 2 (local) or Gemini embedding + ChromaDB vector search">
+                    Gemma 2 / Gemini + Chroma
                 </button>
                 <button class="engine-btn" data-engine="rerank" title="ChromaDB vector retrieval re-ranked by TypeSafe Jev">
                     Hybrid Re-rank
@@ -1111,13 +1111,6 @@
         });
 
         async function triggerBuildIndex() {
-            const gmKey = (geminiKeyInput.value || '').trim() || localStorage.getItem('xkcd_gemini_key');
-            if (!gmKey && !serverKeysStatus.gemini_configured) {
-                keysModal.style.display = 'flex';
-                geminiKeyInput.focus();
-                return;
-            }
-
             const buildBtn = document.getElementById('modal-build-index-btn');
             const errBuildBtn = document.getElementById('err-build-index-btn');
             if (buildBtn) { buildBtn.disabled = true; buildBtn.textContent = 'Building index…'; }
@@ -1393,7 +1386,7 @@
             } else if (engine === 'rerank') {
                 engineBadge = `Hybrid Re-rank <strong>${model}</strong> · <strong>${latency}ms</strong>`;
             } else {
-                engineBadge = `Gemini + Chroma · <strong>${latency}ms</strong>`;
+                engineBadge = `Gemma 2 / Gemini + Chroma · <strong>${latency}ms</strong>`;
             }
 
             let matchNoulBadge = '';

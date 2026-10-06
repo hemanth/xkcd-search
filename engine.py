@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import time
@@ -7,6 +8,7 @@ import chromadb
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from PIL import Image
 from typesafe_sdk import AsyncTypeSafeClient, Choice, Noul
 
 load_dotenv()
@@ -14,8 +16,10 @@ load_dotenv()
 
 _client = None
 _chroma = None
+_st_model = None
 
-MODEL = "gemini-embedding-2-preview"
+MODEL = os.getenv("EMBED_MODEL", "google/embeddinggemma-2")
+GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-2-preview")
 CHROMA_DIR = "chroma_db"
 IMAGE_COLLECTION = "xkcd_images"
 TEXT_COLLECTION = "xkcd_text"
@@ -33,6 +37,25 @@ def _get_client(api_key: str | None = None) -> genai.Client:
     return _client
 
 
+def _get_embeddinggemma_model():
+    global _st_model
+    if _st_model is None:
+        import torch
+        from sentence_transformers import SentenceTransformer
+
+        _st_model = SentenceTransformer(MODEL, model_kwargs={"torch_dtype": torch.bfloat16})
+    return _st_model
+
+
+def _use_local_embeddinggemma(api_key: str | None = None) -> bool:
+    provider = os.getenv("EMBED_PROVIDER", "").strip().lower()
+    if provider in ("gemma", "embeddinggemma", "local"):
+        return True
+    if provider in ("gemini", "google", "cloud"):
+        return False
+    return not bool(api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+
+
 def get_chroma() -> chromadb.ClientAPI:
     """Get or create a persistent ChromaDB client."""
     global _chroma
@@ -42,10 +65,17 @@ def get_chroma() -> chromadb.ClientAPI:
 
 
 def embed_image(image_bytes: bytes, mime_type: str = "image/png", api_key: str | None = None) -> list[float]:
-    """Embed an image and return the embedding vector."""
+    """Embed an image using EmbeddingGemma 2 (local) or Gemini Multimodal Embeddings and return the embedding vector."""
+    if _use_local_embeddinggemma(api_key):
+        model = _get_embeddinggemma_model()
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            vec = model.encode(img.convert("RGB"), normalize_embeddings=True)
+            return vec.tolist() if hasattr(vec, "tolist") else list(vec)
+
     client = _get_client(api_key=api_key)
+    target_model = GEMINI_EMBED_MODEL if "embeddinggemma" in MODEL else MODEL
     result = client.models.embed_content(
-        model=MODEL,
+        model=target_model,
         contents=[
             types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
         ],
@@ -53,11 +83,17 @@ def embed_image(image_bytes: bytes, mime_type: str = "image/png", api_key: str |
     return result.embeddings[0].values
 
 
-def embed_text(text: str, api_key: str | None = None) -> list[float]:
-    """Embed a text query and return the embedding vector."""
+def embed_text(text: str, api_key: str | None = None, prompt_name: str = "SearchQuery") -> list[float]:
+    """Embed a text query using EmbeddingGemma 2 (local) or Gemini Multimodal Embeddings and return the embedding vector."""
+    if _use_local_embeddinggemma(api_key):
+        model = _get_embeddinggemma_model()
+        vec = model.encode(text, prompt_name=prompt_name, normalize_embeddings=True)
+        return vec.tolist() if hasattr(vec, "tolist") else list(vec)
+
     client = _get_client(api_key=api_key)
+    target_model = GEMINI_EMBED_MODEL if "embeddinggemma" in MODEL else MODEL
     result = client.models.embed_content(
-        model=MODEL,
+        model=target_model,
         contents=[text],
     )
     return result.embeddings[0].values
