@@ -1,9 +1,9 @@
 # XKCD Reverse Lookup 
 > Upload an XKCD comic image or describe it in text — instantly find which comic it is.
 
-Powered by **TypeSafe AI System One (Jev)** for ultra-fast semantic search with calibrated probabilities, **EmbeddingGemma 2 (`google/embeddinggemma-2`)** & **gemini-embedding-2-preview** multimodal embeddings, **ChromaDB** for vector storage, and the [olivierdehaene/xkcd](https://huggingface.co/datasets/olivierdehaene/xkcd) dataset.
+Powered by **TypeSafe AI System One (Jev)** for ultra-fast semantic search with calibrated probabilities, **EmbeddingGemma 2 (`google/embeddinggemma-2`)** & **gemini-embedding-2-preview** multimodal embeddings, and the [olivierdehaene/xkcd](https://huggingface.co/datasets/olivierdehaene/xkcd) dataset.
 
-![Architecture](arch.png?v=2)
+![Architecture](arch.png?v=3)
 
 ## Setup
 
@@ -22,7 +22,7 @@ cp .env.example .env
 # Fetch comics from HF dataset (default: last 50)
 python fetch_xkcd.py 50
 
-# Optional: Build the ChromaDB vector index (uses local EmbeddingGemma 2 or Gemini API)
+# Optional: Pre-build vector index
 python index_comics.py
 
 # Optional: Benchmark TypeSafe speed and throughput
@@ -37,10 +37,10 @@ Open [http://localhost:8000](http://localhost:8000) and search!
 ## Search Engines
 
 1. **TypeSafe AI (Jev System One)** — Evaluates candidate comics in a single round-trip (~100–150ms). Returns calibrated probability distributions, confidence levels, and an existence check (`has_match` Noul). Requires zero vector pre-indexing.
-2. **EmbeddingGemma 2 / Gemini + ChromaDB** — Embeds text or uploaded comic images into a unified 768d space stored in ChromaDB:
-   - **Local (`EMBED_PROVIDER=gemma` or no `GEMINI_API_KEY`):** Runs `google/embeddinggemma-2` locally in `bfloat16` via `SentenceTransformer` (`SearchQuery` / `Document` prompts + direct image encoding).
+2. **EmbeddingGemma 2 / Gemini Vector Search** — Embeds text or uploaded comic images into a unified 768d space:
+   - **Local (`EMBED_PROVIDER=gemma` or no `GEMINI_API_KEY`):** Runs `google/embeddinggemma-2` locally in `bfloat16` via `SentenceTransformer` and computes cosine similarity directly over `embeddings/comics.npz` (auto-cached on first run, no ChromaDB required) or ChromaDB if indexed.
    - **Cloud (`EMBED_PROVIDER=gemini` or when `GEMINI_API_KEY` is set):** Uses `gemini-embedding-2-preview` via `google-genai`.
-3. **Hybrid Re-ranking** — Uses ChromaDB vector search to retrieve candidate shortlists, then applies TypeSafe System One (Jev) to re-rank the shortlist with calibrated decision probabilities.
+3. **Hybrid Re-ranking** — Uses vector search to retrieve candidate shortlists, then applies TypeSafe System One (Jev) to re-rank the shortlist with calibrated decision probabilities.
 
 ## Speed Benchmark
 

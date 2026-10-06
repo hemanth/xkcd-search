@@ -99,25 +99,89 @@ def embed_text(text: str, api_key: str | None = None, prompt_name: str = "Search
     return result.embeddings[0].values
 
 
+_npz_cache: dict[str, Any] | None = None
+NPZ_FILE = os.path.join("embeddings", "comics.npz")
+
+
+def _get_or_build_npz_index() -> dict[str, Any]:
+    """Load or build a lightweight numpy (.npz) embedding cache using EmbeddingGemma 2 (no ChromaDB required)."""
+    global _npz_cache
+    if _npz_cache is not None:
+        return _npz_cache
+
+    import numpy as np
+
+    with open(os.path.join("comics", "metadata.json")) as f:
+        comics = json.load(f)
+    meta_by_id = {str(c["num"]): c for c in comics}
+
+    if os.path.exists(NPZ_FILE):
+        data = np.load(NPZ_FILE)
+        _npz_cache = {
+            "ids": [str(x) for x in data["ids"].tolist()],
+            "text_embeddings": data["text_embeddings"],
+            "image_embeddings": data["image_embeddings"] if "image_embeddings" in data else data["text_embeddings"],
+            "meta_by_id": meta_by_id,
+        }
+        return _npz_cache
+
+    model = _get_embeddinggemma_model()
+    ids = []
+    docs = []
+    for c in comics:
+        cid = str(c["num"])
+        title = c.get("title", "") or "none"
+        body = c.get("transcript") or c.get("explanation") or ""
+        ids.append(cid)
+        docs.append(f"title: {title} | text: {body[:1500]}")
+
+    txt_vecs = model.encode(docs, prompt_name="Document", normalize_embeddings=True)
+    os.makedirs("embeddings", exist_ok=True)
+    np.savez_compressed(NPZ_FILE, ids=np.array(ids), text_embeddings=txt_vecs)
+    _npz_cache = {
+        "ids": ids,
+        "text_embeddings": txt_vecs,
+        "image_embeddings": txt_vecs,
+        "meta_by_id": meta_by_id,
+    }
+    return _npz_cache
+
+
 def search(
     query_embedding: list[float],
     query_type: str = "image",
     top_k: int = 5,
 ) -> list[dict]:
-    """Search ChromaDB collections using hybrid scoring.
-
-    For text queries: queries both image and text collections, takes the max score.
-    For image queries: queries image collection only.
-    """
+    """Search via ChromaDB if indexed, or direct cosine similarity over EmbeddingGemma 2 vectors (comics.npz)."""
     chroma = get_chroma()
 
-    # Query image collection
+    # Query image collection if present; otherwise use direct numpy cosine similarity
     try:
         img_col = chroma.get_collection(IMAGE_COLLECTION)
-    except Exception as e:
-        raise ValueError(
-            "ChromaDB collection [xkcd_images] does not exist yet. Run 'python index_comics.py' to build the vector embeddings, or switch to 'TypeSafe Jev' which works immediately."
-        ) from e
+    except Exception:
+        import numpy as np
+
+        idx = _get_or_build_npz_index()
+        q_vec = np.asarray(query_embedding, dtype=np.float32)
+        q_norm = np.linalg.norm(q_vec)
+        if q_norm > 0:
+            q_vec = q_vec / q_norm
+        sims = np.dot(idx["text_embeddings"], q_vec)
+        top_indices = np.argsort(sims)[::-1][:top_k]
+        results = []
+        for idx_pos in top_indices:
+            doc_id = idx["ids"][int(idx_pos)]
+            meta = idx["meta_by_id"].get(doc_id, {})
+            results.append({
+                "comic_id": int(doc_id),
+                "score": round(float(sims[int(idx_pos)]), 4),
+                "title": meta.get("title", ""),
+                "transcript": meta.get("transcript", ""),
+                "explanation": meta.get("explanation", ""),
+                "filename": meta.get("filename", ""),
+                "url": f"https://xkcd.com/{doc_id}/",
+            })
+        return results
 
     img_results = img_col.query(
         query_embeddings=[query_embedding],
