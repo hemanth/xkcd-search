@@ -3,7 +3,7 @@
 
 Powered by **TypeSafe AI System One (Jev)** for ultra-fast semantic search with calibrated probabilities, **EmbeddingGemma 2 (`google/embeddinggemma-2`)** & **gemini-embedding-2-preview** multimodal embeddings, **ChromaDB** for vector storage, and the [olivierdehaene/xkcd](https://huggingface.co/datasets/olivierdehaene/xkcd) dataset.
 
-![Architecture](arch.png)
+![Architecture](arch.png?v=2)
 
 ## Setup
 
